@@ -105,3 +105,208 @@ void http_conn::init() {
     memset(m_write_buf, '\0', WRITE_BUFFER_SIZE);
     memset(m_real_file, '\0', FILENAME_LEN);
 }
+
+http_conn::LINE_STATUS http_conn::parse_line() {
+    char temp;
+    for (; m_checked_idx < m_read_idx; ++m_checked_idx) {
+        temp = m_read_buf[m_checked_idx];
+        if (temp == '\r') {
+            if ((m_checked_idx + 1) == m_read_idx)
+                return LINE_OPEN;
+            else if (m_read_buf[m_checked_idx + 1] == '\n') {
+                m_read_buf[m_checked_idx++] = '\0';
+                m_read_buf[m_checked_idx++] = '\0';
+                return LINE_OK;
+            }
+            return LINE_BAD;
+        } else if (temp == '\n') {
+            if (m_checked_idx > 1 && m_read_buf[m_checked_idx - 1] == '\r') {
+                m_read_buf[m_checked_idx - 1] = '\0';
+                m_read_buf[m_checked_idx++] = '\0';
+                return LINE_OK;
+            }
+            return LINE_BAD;
+        }
+    }
+    return LINE_OPEN;
+}
+
+http_conn::HTTP_CODE http_conn::do_request() {
+
+}
+
+bool http_conn::read_once() {
+    if (m_read_idx >= READ_BUFFER_SIZE) {
+        return false;
+    }
+    int bytes_read = 0;
+
+    if (0 == m_TRIGMode) {
+        //LT读取数据
+        bytes_read = recv(m_sockfd, m_read_buf + m_read_idx, READ_BUFFER_SIZE - m_read_idx, 0);
+        m_read_idx += bytes_read;
+        if (bytes_read <= 0) {
+            return false;
+        }
+        return true;
+    } else {
+        //ET读数据
+        while (true) {
+            bytes_read = recv(m_sockfd, m_read_buf + m_read_idx, READ_BUFFER_SIZE - m_read_idx, 0);
+            if (bytes_read == -1) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK)
+                    break;
+                return false;
+            } else if (bytes_read == 0) {
+                return false;
+            }
+            m_read_idx += bytes_read;
+        }
+        return true;
+    }
+}
+
+bool http_conn::write() {
+    int temp = 0;
+    if (bytes_to_send == 0) {
+        modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);
+        init();
+        return true;
+    }
+    while (1) {
+        temp = writev(m_sockfd, m_iv, m_iv_count);
+        if (temp < 0) {
+            if (errno == EAGAIN) {
+                modfd(m_epollfd, m_sockfd, EPOLLOUT, m_TRIGMode);
+                return true;
+            }
+            unmap();
+            return false;
+        }
+        bytes_have_send += temp;
+        bytes_to_send -= temp;
+        if (bytes_have_send >= m_iv[0].iov_len) {
+            m_iv[0].iov_len = 0;
+            m_iv[1].iov_base = m_file_address + (bytes_have_send - m_write_idx);
+            m_iv[1].iov_len = bytes_to_send;
+        } else {
+            m_iv[0].iov_base = m_write_buf + bytes_have_send;
+            m_iv[0].iov_len = m_iv[0].iov_len - bytes_have_send;
+        }
+        if (bytes_to_send <= 0) {
+            unmap();
+            modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);
+            if (m_linger) {
+                init();
+                return true;
+            } else {
+                return false;
+            }
+        }
+    }
+}
+
+http_conn::HTTP_CODE http_conn::process_read() {
+    LINE_STATUS line_status = LINE_OK;
+    HTTP_CODE ret = NO_REQUEST;
+    char *text = 0;
+    while ((m_check_state == CHECK_STATE_CONTENT && line_status == LINE_OK) || ((line_status = parse_line()) == LINE_OK)) {
+        text = get_line();
+        // m_st
+    }
+    return NO_REQUEST;
+}
+
+bool http_conn::process_write(HTTP_CODE ret) {
+    switch (ret) {
+        case INTERNAL_ERROR: {
+            add_status_line(500, error_500_title);
+            add_headers(strlen(error_500_form));
+            if (!add_content(error_500_form))
+                return false;
+            break;
+        }
+        case BAD_REQUEST: {
+            add_status_line(404, error_404_title);
+            add_headers(strlen(error_404_form));
+            if (!add_content(error_404_form))
+                return false;
+            break;
+        }
+        case FORBIDDEN_REQUEST: {
+            add_status_line(403, error_403_title);
+            add_headers(strlen(error_403_form));
+            if (!add_content(error_403_form))
+                return false;
+            break;
+        }
+        case FILE_REQUEST: {
+            
+        }
+        default:
+            return false;
+    }
+    m_iv[0].iov_base = m_write_buf;
+    m_iv[0].iov_len = m_write_idx;
+    m_iv_count = 1;
+    bytes_to_send = m_write_idx;
+    return true;
+}
+
+void http_conn::process() {
+    HTTP_CODE read_ret = process_read();
+    if (read_ret == NO_REQUEST) {
+        modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);
+        return;
+    }
+    bool write_ret = process_write(read_ret);
+    if (!write_ret) {
+        close_conn();
+    }
+    modfd(m_epollfd, m_sockfd, EPOLLOUT, m_TRIGMode);
+}
+
+bool http_conn::add_response(const char *format, ...)
+{
+    if (m_write_idx >= WRITE_BUFFER_SIZE)
+        return false;
+    va_list arg_list;
+    va_start(arg_list, format);
+    int len = vsnprintf(m_write_buf + m_write_idx, WRITE_BUFFER_SIZE - 1 - m_write_idx, format, arg_list);
+    if (len >= (WRITE_BUFFER_SIZE - 1 - m_write_idx)) {
+        va_end(arg_list);
+        return false;
+    }
+    m_write_idx += len;
+    va_end(arg_list);
+    return true;
+}
+
+bool http_conn::add_status_line(int status, const char *title) {
+    return add_response("%s %d %s\r\n", "HTTP/1.1", status, title);
+}
+
+bool http_conn::add_headers(int content_len) {
+    return add_content_length(content_len) && add_linger() &&
+           add_blank_line();
+}
+
+bool http_conn::add_content_length(int content_len) {
+    return add_response("Content-Length:%d\r\n", content_len);
+}
+
+bool http_conn::add_content_type() {
+    return add_response("Content-Type:%s\r\n", "text/html");
+}
+
+bool http_conn::add_linger() {
+    return add_response("Connection:%s\r\n", (m_linger == true) ? "keep-alive" : "close");
+}
+
+bool http_conn::add_blank_line() {
+    return add_response("%s", "\r\n");
+}
+
+bool http_conn::add_content(const char *content) {
+    return add_response("%s", content);
+}

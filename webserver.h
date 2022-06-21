@@ -23,9 +23,7 @@ class WebServer {
 public:
     WebServer();
     ~WebServer();
-    void init(int port , string user, string passWord, string databaseName,
-              int log_write , int opt_linger, int trigmode, int sql_num,
-              int thread_num, int close_log, int actor_model);
+    void init(int port, int log_write, int opt_linger, int trigmode, int thread_num, int close_log, int actor_model);
     void thread_pool();
     void sql_pool();
     void log_write();

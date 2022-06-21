@@ -23,6 +23,16 @@ WebServer::~WebServer() {
     delete m_pool;
 }
 
+void WebServer::init(int port, int log_write, int opt_linger, int trigmode, int thread_num, int close_log, int actor_model) {
+    m_port = port;
+    m_thread_num = thread_num;
+    m_log_write = log_write;
+    m_OPT_LINGER = opt_linger;
+    m_TRIGMode = trigmode;
+    m_close_log = close_log;
+    m_actormodel = actor_model;
+}
+
 void WebServer::trig_mode() {
     //LT + LT
     if (0 == m_TRIGMode) {
@@ -46,6 +56,10 @@ void WebServer::trig_mode() {
     }
 }
 
+void WebServer::thread_pool() {
+    m_pool = new threadpool<http_conn>(m_actormodel, m_thread_num);
+}
+
 void WebServer::timer(int connfd, struct sockaddr_in client_address) {
     users[connfd].init(connfd, client_address, m_root, m_CONNTrigmode, m_close_log);
     users_timer[connfd].address = client_address;
@@ -59,15 +73,13 @@ void WebServer::timer(int connfd, struct sockaddr_in client_address) {
     utils.m_timer_lst.add_timer(timer);
 }
 
-void WebServer::adjust_timer(util_timer *timer)
-{
+void WebServer::adjust_timer(util_timer *timer) {
     time_t cur = time(NULL);
     timer->expire = cur + 3 * TIMESLOT;
     utils.m_timer_lst.adjust_timer(timer);
 }
 
-void WebServer::deal_timer(util_timer *timer, int sockfd)
-{
+void WebServer::deal_timer(util_timer *timer, int sockfd) {
     timer->cb_func(&users_timer[sockfd]);
     if (timer) {
         utils.m_timer_lst.del_timer(timer);
@@ -253,18 +265,19 @@ void WebServer::eventLoop() {
         for (int i = 0; i < number; i++) {
             int sockfd = events[i].data.fd;
             if (sockfd == m_listenfd) {
-
+                bool flag = dealclinetdata();
+                if (false == flag)
+                    continue;
             } else if (events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
-
-
+                util_timer *timer = users_timer[sockfd].timer;
+                deal_timer(timer, sockfd);
             } else if ((sockfd == m_pipefd[0]) && (events[i].events & EPOLLIN)) {
-
+                bool flag = dealwithsignal(timeout, stop_server);
             } else if (events[i].events & EPOLLIN) {
-
+                dealwithread(sockfd);
             } else if (events[i].events & EPOLLOUT) {
-
+                dealwithwrite(sockfd);
             }
-
         }
         if (timeout) {
             utils.timer_handler();
