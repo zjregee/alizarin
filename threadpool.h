@@ -5,7 +5,7 @@
 #include <cstdio>
 #include <exception>
 #include <pthread.h>
-#include "../locker.h"
+#include "locker.h"
 
 template <typename T>
 class threadpool {

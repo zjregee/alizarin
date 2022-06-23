@@ -103,36 +103,37 @@ void http_conn::init() {
 
     memset(m_read_buf, '\0', READ_BUFFER_SIZE);
     memset(m_write_buf, '\0', WRITE_BUFFER_SIZE);
-    memset(m_real_file, '\0', FILENAME_LEN);
 }
 
-http_conn::LINE_STATUS http_conn::parse_line() {
-    char temp;
-    for (; m_checked_idx < m_read_idx; ++m_checked_idx) {
-        temp = m_read_buf[m_checked_idx];
-        if (temp == '\r') {
-            if ((m_checked_idx + 1) == m_read_idx)
-                return LINE_OPEN;
-            else if (m_read_buf[m_checked_idx + 1] == '\n') {
-                m_read_buf[m_checked_idx++] = '\0';
-                m_read_buf[m_checked_idx++] = '\0';
-                return LINE_OK;
-            }
-            return LINE_BAD;
-        } else if (temp == '\n') {
-            if (m_checked_idx > 1 && m_read_buf[m_checked_idx - 1] == '\r') {
-                m_read_buf[m_checked_idx - 1] = '\0';
-                m_read_buf[m_checked_idx++] = '\0';
-                return LINE_OK;
-            }
-            return LINE_BAD;
-        }
-    }
-    return LINE_OPEN;
-}
+// http_conn::LINE_STATUS http_conn::parse_line() {
+//     char temp;
+//     for (; m_checked_idx < m_read_idx; ++m_checked_idx) {
+//         temp = m_read_buf[m_checked_idx];
+//         if (temp == '\r') {
+//             if ((m_checked_idx + 1) == m_read_idx)
+//                 return LINE_OPEN;
+//             else if (m_read_buf[m_checked_idx + 1] == '\n') {
+//                 m_read_buf[m_checked_idx++] = '\0';
+//                 m_read_buf[m_checked_idx++] = '\0';
+//                 return LINE_OK;
+//             }
+//             return LINE_BAD;
+//         } else if (temp == '\n') {
+//             if (m_checked_idx > 1 && m_read_buf[m_checked_idx - 1] == '\r') {
+//                 m_read_buf[m_checked_idx - 1] = '\0';
+//                 m_read_buf[m_checked_idx++] = '\0';
+//                 return LINE_OK;
+//             }
+//             return LINE_BAD;
+//         }
+//     }
+//     return LINE_OPEN;
+// }
 
 http_conn::HTTP_CODE http_conn::do_request() {
-
+    printf("接收到数据如下:\n");
+    printf("%s\n", m_read_buf);
+    return FILE_REQUEST;
 }
 
 bool http_conn::read_once() {
@@ -180,21 +181,13 @@ bool http_conn::write() {
                 modfd(m_epollfd, m_sockfd, EPOLLOUT, m_TRIGMode);
                 return true;
             }
-            unmap();
             return false;
         }
         bytes_have_send += temp;
         bytes_to_send -= temp;
-        if (bytes_have_send >= m_iv[0].iov_len) {
-            m_iv[0].iov_len = 0;
-            m_iv[1].iov_base = m_file_address + (bytes_have_send - m_write_idx);
-            m_iv[1].iov_len = bytes_to_send;
-        } else {
-            m_iv[0].iov_base = m_write_buf + bytes_have_send;
-            m_iv[0].iov_len = m_iv[0].iov_len - bytes_have_send;
-        }
+        m_iv[0].iov_base = m_write_buf + bytes_have_send;
+        m_iv[0].iov_len = m_iv[0].iov_len - bytes_have_send;
         if (bytes_to_send <= 0) {
-            unmap();
             modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);
             if (m_linger) {
                 init();
@@ -207,45 +200,14 @@ bool http_conn::write() {
 }
 
 http_conn::HTTP_CODE http_conn::process_read() {
-    LINE_STATUS line_status = LINE_OK;
-    HTTP_CODE ret = NO_REQUEST;
-    char *text = 0;
-    while ((m_check_state == CHECK_STATE_CONTENT && line_status == LINE_OK) || ((line_status = parse_line()) == LINE_OK)) {
-        text = get_line();
-        // m_st
-    }
-    return NO_REQUEST;
+    return do_request();
 }
 
 bool http_conn::process_write(HTTP_CODE ret) {
-    switch (ret) {
-        case INTERNAL_ERROR: {
-            add_status_line(500, error_500_title);
-            add_headers(strlen(error_500_form));
-            if (!add_content(error_500_form))
-                return false;
-            break;
-        }
-        case BAD_REQUEST: {
-            add_status_line(404, error_404_title);
-            add_headers(strlen(error_404_form));
-            if (!add_content(error_404_form))
-                return false;
-            break;
-        }
-        case FORBIDDEN_REQUEST: {
-            add_status_line(403, error_403_title);
-            add_headers(strlen(error_403_form));
-            if (!add_content(error_403_form))
-                return false;
-            break;
-        }
-        case FILE_REQUEST: {
-            
-        }
-        default:
-            return false;
-    }
+    add_status_line(500, error_500_title);
+    add_headers(strlen(error_500_form));
+    if (!add_content(error_500_form))
+        return false;
     m_iv[0].iov_base = m_write_buf;
     m_iv[0].iov_len = m_write_idx;
     m_iv_count = 1;

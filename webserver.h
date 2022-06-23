@@ -42,9 +42,6 @@ public:
     int m_port;
     char *m_root;
     int m_log_write;
-    int m_port;
-    char *m_root;
-    int m_log_write;
     int m_close_log;
     int m_actormodel;
     int m_pipefd[2];
