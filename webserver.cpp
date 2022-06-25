@@ -2,14 +2,6 @@
 
 WebServer::WebServer() {
     users = new http_conn[MAX_FD];
-
-    char server_path[200];
-    getcwd(server_path, 200);
-    char root[6] = "/root";
-    m_root = (char *)malloc(strlen(server_path) + strlen(root) + 1);
-    strcpy(m_root, server_path);
-    strcat(m_root, root);
-
     users_timer = new client_data[MAX_FD];
 }
 
@@ -61,7 +53,7 @@ void WebServer::thread_pool() {
 }
 
 void WebServer::timer(int connfd, struct sockaddr_in client_address) {
-    users[connfd].init(connfd, client_address, m_root, m_CONNTrigmode, m_close_log);
+    users[connfd].init(connfd, client_address, m_CONNTrigmode, m_close_log);
     users_timer[connfd].address = client_address;
     users_timer[connfd].sockfd = connfd;
     util_timer *timer = new util_timer;

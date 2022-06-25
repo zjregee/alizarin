@@ -68,14 +68,13 @@ void http_conn::close_conn(bool real_close) {
     }
 }
 
-void http_conn::init(int sockfd, const sockaddr_in &addr, char *root, int TRIGMode, int close_log) {
+void http_conn::init(int sockfd, const sockaddr_in &addr, int TRIGMode, int close_log) {
     m_sockfd = sockfd;
     m_address = addr;
 
     addfd(m_epollfd, sockfd, true, m_TRIGMode);
     m_user_count++;
 
-    doc_root = root;
     m_TRIGMode = TRIGMode;
     m_close_log = close_log;
 
@@ -96,7 +95,6 @@ void http_conn::init() {
     m_checked_idx = 0;
     m_read_idx = 0;
     m_write_idx = 0;
-    cgi = 0;
     m_state = 0;
     timer_flag = 0;
     improv = 0;
@@ -105,34 +103,59 @@ void http_conn::init() {
     memset(m_write_buf, '\0', WRITE_BUFFER_SIZE);
 }
 
-// http_conn::LINE_STATUS http_conn::parse_line() {
-//     char temp;
-//     for (; m_checked_idx < m_read_idx; ++m_checked_idx) {
-//         temp = m_read_buf[m_checked_idx];
-//         if (temp == '\r') {
-//             if ((m_checked_idx + 1) == m_read_idx)
-//                 return LINE_OPEN;
-//             else if (m_read_buf[m_checked_idx + 1] == '\n') {
-//                 m_read_buf[m_checked_idx++] = '\0';
-//                 m_read_buf[m_checked_idx++] = '\0';
-//                 return LINE_OK;
-//             }
-//             return LINE_BAD;
-//         } else if (temp == '\n') {
-//             if (m_checked_idx > 1 && m_read_buf[m_checked_idx - 1] == '\r') {
-//                 m_read_buf[m_checked_idx - 1] = '\0';
-//                 m_read_buf[m_checked_idx++] = '\0';
-//                 return LINE_OK;
-//             }
-//             return LINE_BAD;
-//         }
-//     }
-//     return LINE_OPEN;
-// }
-
 http_conn::HTTP_CODE http_conn::do_request() {
-    printf("接收到数据如下:\n");
-    printf("%s\n", m_read_buf);
+    // printf("接收到数据1如下:\n");
+    // printf("%s\n", m_read_buf);
+
+    int sockfd, num;
+    char buf[300];
+    struct hostent *he;
+    struct sockaddr_in server;
+ 
+    char* ip = "47.114.99.34";
+ 
+    if ((he = gethostbyname(ip)) == NULL) {
+        printf("gethostbyname() error\n");
+        exit(1);
+    }
+ 
+    if((sockfd = socket(AF_INET,SOCK_STREAM, 0)) == -1) {
+        printf("socket() error\n");
+        exit(1);
+    }
+
+    bzero(&server,sizeof(server));
+    server.sin_family = AF_INET;
+    server.sin_port = htons(8080);
+    server.sin_addr = *((struct in_addr *)he->h_addr);
+
+    if(connect(sockfd, (struct sockaddr *)&server, sizeof(server)) == -1) {
+        printf("connect() error\n");
+        exit(1);
+    }
+
+    // char str[] = "POST /key/get HTTP/1.1\r\nHost: 10.114.99.34:8080\r\nUser-Agent: curl/7.68.0\r\nAccept: application/json\r\nContent-type: application/json\r\nContent-Length: 13\r\n\r\n{\"key\":\"aa\"}\r\n";
+    if((num = send(sockfd, m_read_buf, sizeof(m_read_buf), 1)) == -1){
+        printf("send() error\n");
+        exit(1);
+    }
+
+    if((num = recv(sockfd, buf, 300, 0)) == -1) {
+        printf("recv() error\n");
+        exit(1);
+    }
+    buf[num]='\0';
+
+    // printf("接收到数据2如下:\n");
+    // printf("%s\n",buf);
+
+    close(sockfd);
+
+    for (int i = 0; i <= num; i++) {
+        m_write_buf[i] = buf[i];
+        m_write_idx++;
+    }
+
     return FILE_REQUEST;
 }
 
@@ -200,14 +223,50 @@ bool http_conn::write() {
 }
 
 http_conn::HTTP_CODE http_conn::process_read() {
+    // LINE_STATUS line_status = LINE_OK;
+    // HTTP_CODE ret = NO_REQUEST;
+    // char *text = 0;
+
+    // while ((m_check_state == CHECK_STATE_CONTENT && line_status == LINE_OK) || ((line_status = parse_line()) == LINE_OK)) {
+    //     text = get_line();
+    //     m_start_line = m_checked_idx;
+    //     switch (m_check_state) {
+    //     case CHECK_STATE_REQUESTLINE: {
+    //         ret = parse_request_line(text);
+    //         if (ret == BAD_REQUEST)
+    //             return BAD_REQUEST;
+    //         break;
+    //     }
+    //     case CHECK_STATE_HEADER: {
+    //         ret = parse_headers(text);
+    //         if (ret == BAD_REQUEST)
+    //             return BAD_REQUEST;
+    //         else if (ret == GET_REQUEST) {
+    //             return do_request();
+    //         }
+    //         break;
+    //     }
+    //     case CHECK_STATE_CONTENT: {
+    //         ret = parse_content(text);
+    //         if (ret == GET_REQUEST)
+    //             return do_request();
+    //         line_status = LINE_OPEN;
+    //         break;
+    //     }
+    //     default:
+    //         return INTERNAL_ERROR;
+    //     }
+    // }
+    // return NO_REQUEST;
     return do_request();
 }
 
 bool http_conn::process_write(HTTP_CODE ret) {
-    add_status_line(500, error_500_title);
-    add_headers(strlen(error_500_form));
-    if (!add_content(error_500_form))
-        return false;
+    // add_status_line(200, ok_200_title);
+    // const char *ok_string = "<html><body></body></html>";
+    // add_headers(strlen(ok_string));
+    // if (!add_content(ok_string))
+    //     return false;
     m_iv[0].iov_base = m_write_buf;
     m_iv[0].iov_len = m_write_idx;
     m_iv_count = 1;
@@ -271,4 +330,97 @@ bool http_conn::add_blank_line() {
 
 bool http_conn::add_content(const char *content) {
     return add_response("%s", content);
+}
+
+http_conn::LINE_STATUS http_conn::parse_line() {
+    char temp;
+    for (; m_checked_idx < m_read_idx; ++m_checked_idx) {
+        temp = m_read_buf[m_checked_idx];
+        if (temp == '\r') {
+            if ((m_checked_idx + 1) == m_read_idx)
+                return LINE_OPEN;
+            else if (m_read_buf[m_checked_idx + 1] == '\n') {
+                m_read_buf[m_checked_idx++] = '\0';
+                m_read_buf[m_checked_idx++] = '\0';
+                return LINE_OK;
+            }
+            return LINE_BAD;
+        } else if (temp == '\n') {
+            if (m_checked_idx > 1 && m_read_buf[m_checked_idx - 1] == '\r') {
+                m_read_buf[m_checked_idx - 1] = '\0';
+                m_read_buf[m_checked_idx++] = '\0';
+                return LINE_OK;
+            }
+            return LINE_BAD;
+        }
+    }
+    return LINE_OPEN;
+}
+
+http_conn::HTTP_CODE http_conn::parse_request_line(char *text) {
+    m_url = strpbrk(text, " \t");
+    if (!m_url)
+        return BAD_REQUEST;
+    *m_url++ = '\0';
+    char *method = text;
+    if (strcasecmp(method, "GET") == 0)
+        m_method = GET;
+    else if (strcasecmp(method, "POST") == 0)
+        m_method = POST;
+    else
+        return BAD_REQUEST;
+    m_url += strspn(m_url, " \t");
+    m_version = strpbrk(m_url, " \t");
+    if (!m_version)
+        return BAD_REQUEST;
+    *m_version++ = '\0';
+    m_version += strspn(m_version, " \t");
+    if (strcasecmp(m_version, "HTTP/1.1") != 0)
+        return BAD_REQUEST;
+    if (strncasecmp(m_url, "http://", 7) == 0) {
+        m_url += 7;
+        m_url = strchr(m_url, '/');
+    }
+    if (strncasecmp(m_url, "https://", 8) == 0) {
+        m_url += 8;
+        m_url = strchr(m_url, '/');
+    }
+    if (!m_url || m_url[0] != '/')
+        return BAD_REQUEST;
+    m_check_state = CHECK_STATE_HEADER;
+    return NO_REQUEST;
+}
+
+http_conn::HTTP_CODE http_conn::parse_headers(char *text) {
+    if (text[0] == '\0') {
+        if (m_content_length != 0) {
+            m_check_state = CHECK_STATE_CONTENT;
+            return NO_REQUEST;
+        }
+        return GET_REQUEST;
+    } else if (strncasecmp(text, "Connection:", 11) == 0) {
+        text += 11;
+        text += strspn(text, " \t");
+        if (strcasecmp(text, "keep-alive") == 0) {
+            m_linger = true;
+        }
+    } else if (strncasecmp(text, "Content-length:", 15) == 0) {
+        text += 15;
+        text += strspn(text, " \t");
+        m_content_length = atol(text);
+    } else if (strncasecmp(text, "Host:", 5) == 0) {
+        text += 5;
+        text += strspn(text, " \t");
+        m_host = text;
+    }
+    return NO_REQUEST;
+}
+
+http_conn::HTTP_CODE http_conn::parse_content(char *text) {
+    if (m_read_idx >= (m_content_length + m_checked_idx)) {
+        text[m_content_length] = '\0';
+        m_string = text;
+        return GET_REQUEST;
+    }
+    return NO_REQUEST;
 }

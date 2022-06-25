@@ -21,6 +21,16 @@
 #include <sys/uio.h>
 #include <map>
 
+// test
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+
 #include "../locker.h"
 #include "../log/log.h"
 #include "../timer/lst_timer.h"
@@ -65,7 +75,7 @@ public:
     http_conn() {}
     ~http_conn() {}
 public:
-    void init(int sockfd, const sockaddr_in &addr, char *, int, int);
+    void init(int sockfd, const sockaddr_in &addr, int, int);
     void close_conn(bool real_close = true);
     void process();
     bool read_once();
@@ -119,7 +129,6 @@ private:
     struct stat m_file_stat;
     struct iovec m_iv[2];
     int m_iv_count;
-    int cgi;
     char *m_string;
     int bytes_to_send;
     int bytes_have_send;
