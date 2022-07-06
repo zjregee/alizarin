@@ -23,7 +23,7 @@ class WebServer {
 public:
     WebServer();
     ~WebServer();
-    void init(int port, int log_write, int opt_linger, int trigmode, int thread_num, int close_log, int actor_model);
+    void init(int port, int log_write, int opt_linger, int trigmode, int thread_num);
     void thread_pool();
     void sql_pool();
     void log_write();
@@ -39,25 +39,18 @@ public:
     void dealwithwrite(int sockfd);
 
 public:
-    // 基础
     int m_port;
-    int m_log_write;
-    int m_close_log;
-    int m_actormodel;
     int m_pipefd[2];
     int m_epollfd;
     http_conn *users;
-    // 线程池相关
     threadpool<http_conn> *m_pool;
     int m_thread_num;
-    // epoll_event相关
     epoll_event events[MAX_EVENT_NUMBER];
     int m_listenfd;
     int m_OPT_LINGER;
     int m_TRIGMode;
     int m_LISTENTrigmode;
     int m_CONNTrigmode;
-    // 定时器相关
     client_data *users_timer;
     Utils utils;
 };

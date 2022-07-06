@@ -15,14 +15,11 @@ WebServer::~WebServer() {
     delete m_pool;
 }
 
-void WebServer::init(int port, int log_write, int opt_linger, int trigmode, int thread_num, int close_log, int actor_model) {
+void WebServer::init(int port, int opt_linger, int trigmode, int thread_num) {
     m_port = port;
     m_thread_num = thread_num;
-    m_log_write = log_write;
     m_OPT_LINGER = opt_linger;
     m_TRIGMode = trigmode;
-    m_close_log = close_log;
-    m_actormodel = actor_model;
 }
 
 void WebServer::trig_mode() {
@@ -49,7 +46,7 @@ void WebServer::trig_mode() {
 }
 
 void WebServer::thread_pool() {
-    m_pool = new threadpool<http_conn>(m_actormodel, m_thread_num);
+    m_pool = new threadpool<http_conn>(m_thread_num);
 }
 
 void WebServer::timer(int connfd, struct sockaddr_in client_address) {
@@ -136,62 +133,24 @@ bool WebServer::dealwithsignal(bool &timeout, bool &stop_server) {
 
 void WebServer::dealwithread(int sockfd) {
     util_timer *timer = users_timer[sockfd].timer;
-    if (1 == m_actormodel) {
-        // reactor
+    if (users[sockfd].read_once()) {
+        m_pool->append_p(users + sockfd);
         if (timer) {
             adjust_timer(timer);
         }
-        m_pool->append(users + sockfd, 0);
-        while (true) {
-            if (1 == users[sockfd].improv) {
-                if (1 == users[sockfd].timer_flag) {
-                    deal_timer(timer, sockfd);
-                    users[sockfd].timer_flag = 0;
-                }
-                users[sockfd].improv = 0;
-                break;
-            }
-        }
     } else {
-        // proactor
-        if (users[sockfd].read_once()) {
-            m_pool->append_p(users + sockfd);
-            if (timer) {
-                adjust_timer(timer);
-            }
-        } else {
-            deal_timer(timer, sockfd);
-        }
+        deal_timer(timer, sockfd);
     }
 }
 
 void WebServer::dealwithwrite(int sockfd) {
     util_timer *timer = users_timer[sockfd].timer;
-    if (1 == m_actormodel) {
-        //reactor
+    if (users[sockfd].write()) {
         if (timer) {
             adjust_timer(timer);
         }
-        m_pool->append(users + sockfd, 1);
-        while (true) {
-            if (1 == users[sockfd].improv) {
-                if (1 == users[sockfd].timer_flag) {
-                    deal_timer(timer, sockfd);
-                    users[sockfd].timer_flag = 0;
-                }
-                users[sockfd].improv = 0;
-                break;
-            }
-        }
     } else {
-        //proactor
-        if (users[sockfd].write()) {
-            if (timer) {
-                adjust_timer(timer);
-            }
-        } else {
-            deal_timer(timer, sockfd);
-        }
+        deal_timer(timer, sockfd);
     }
 }
 
