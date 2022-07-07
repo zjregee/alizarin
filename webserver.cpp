@@ -15,11 +15,13 @@ WebServer::~WebServer() {
     delete m_pool;
 }
 
-void WebServer::init(int port, int opt_linger, int trigmode, int thread_num) {
+void WebServer::init(int port, int opt_linger, int trigmode, int thread_num, int server_num, int test) {
     m_port = port;
     m_thread_num = thread_num;
     m_OPT_LINGER = opt_linger;
     m_TRIGMode = trigmode;
+    m_test = test;
+    m_server_num = server_num;
 }
 
 void WebServer::trig_mode() {
@@ -50,7 +52,7 @@ void WebServer::thread_pool() {
 }
 
 void WebServer::timer(int connfd, struct sockaddr_in client_address) {
-    users[connfd].init(connfd, client_address, m_CONNTrigmode, m_close_log);
+    users[connfd].init(connfd, m_CONNTrigmode);
     users_timer[connfd].address = client_address;
     users_timer[connfd].sockfd = connfd;
     util_timer *timer = new util_timer;
@@ -68,14 +70,14 @@ void WebServer::adjust_timer(util_timer *timer) {
     utils.m_timer_lst.adjust_timer(timer);
 }
 
-void WebServer::deal_timer(util_timer *timer, int sockfd) {
+void WebServer::deal_time(util_timer *timer, int sockfd) {
     timer->cb_func(&users_timer[sockfd]);
     if (timer) {
         utils.m_timer_lst.del_timer(timer);
     }
 }
 
-bool WebServer::dealclinetdata() {
+bool WebServer::deal_client() {
     struct sockaddr_in client_address;
     socklen_t client_addrlength = sizeof(client_address);
     if (0 == m_LISTENTrigmode) {
@@ -105,7 +107,7 @@ bool WebServer::dealclinetdata() {
     return true;
 }
 
-bool WebServer::dealwithsignal(bool &timeout, bool &stop_server) {
+bool WebServer::deal_signal(bool &timeout, bool &stop_server) {
     int ret = 0;
     int sig;
     char signals[1024];
@@ -131,26 +133,26 @@ bool WebServer::dealwithsignal(bool &timeout, bool &stop_server) {
     return true;
 }
 
-void WebServer::dealwithread(int sockfd) {
+void WebServer::deal_read(int sockfd) {
     util_timer *timer = users_timer[sockfd].timer;
     if (users[sockfd].read_once()) {
-        m_pool->append_p(users + sockfd);
+        m_pool->append(users + sockfd);
         if (timer) {
             adjust_timer(timer);
         }
     } else {
-        deal_timer(timer, sockfd);
+        deal_time(timer, sockfd);
     }
 }
 
-void WebServer::dealwithwrite(int sockfd) {
+void WebServer::deal_write(int sockfd) {
     util_timer *timer = users_timer[sockfd].timer;
     if (users[sockfd].write()) {
         if (timer) {
             adjust_timer(timer);
         }
     } else {
-        deal_timer(timer, sockfd);
+        deal_time(timer, sockfd);
     }
 }
 
@@ -188,6 +190,7 @@ void WebServer::eventListen() {
 
     utils.addfd(m_epollfd, m_listenfd, false, m_LISTENTrigmode);
     http_conn::m_epollfd = m_epollfd;
+    http_conn::m_test = m_test;
 
     ret = socketpair(PF_UNIX, SOCK_STREAM, 0, m_pipefd);
     assert(ret != -1);
@@ -216,18 +219,18 @@ void WebServer::eventLoop() {
         for (int i = 0; i < number; i++) {
             int sockfd = events[i].data.fd;
             if (sockfd == m_listenfd) {
-                bool flag = dealclinetdata();
+                bool flag = deal_client();
                 if (false == flag)
                     continue;
             } else if (events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
                 util_timer *timer = users_timer[sockfd].timer;
-                deal_timer(timer, sockfd);
+                deal_time(timer, sockfd);
             } else if ((sockfd == m_pipefd[0]) && (events[i].events & EPOLLIN)) {
-                bool flag = dealwithsignal(timeout, stop_server);
+                bool flag = deal_signal(timeout, stop_server);
             } else if (events[i].events & EPOLLIN) {
-                dealwithread(sockfd);
+                deal_read(sockfd);
             } else if (events[i].events & EPOLLOUT) {
-                dealwithwrite(sockfd);
+                deal_write(sockfd);
             }
         }
         if (timeout) {

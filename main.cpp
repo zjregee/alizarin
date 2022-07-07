@@ -5,7 +5,7 @@ int main(int argc, char *argv[]) {
     config.parse_arg(argc, argv);
 
     WebServer server;
-    server.init(config.PORT, config.OPT_LINGER, config.TRIGMode, config.thread_num);
+    server.init(config.PORT, config.OPT_LINGER, config.TRIGMode, config.thread_num, config.server_num, config.test);
     server.thread_pool();
     server.trig_mode();
     server.eventListen();

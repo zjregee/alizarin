@@ -12,8 +12,7 @@ class threadpool {
 public:
     threadpool(int thread_number = 8, int max_request = 10000);
     ~threadpool();
-    bool append(T *request, int state);
-    bool append_p(T *request);
+    bool append(T *request);
 private:
     static void *worker(void *arg);
     void run();
@@ -46,26 +45,7 @@ threadpool<T>::threadpool(int thread_number, int max_requests) : m_thread_number
 }
 
 template <typename T>
-threadpool<T>::~threadpool() {
-    delete[] m_threads;
-}
-
-template <typename T>
-bool threadpool<T>::append(T *request, int state) {
-    m_queuelocker.lock();
-    if (m_workqueue.size() >= m_max_requests) {
-        m_queuelocker.unlock();
-        return false;
-    }
-    request->m_state = state;
-    m_workqueue.push_back(request);
-    m_queuelocker.unlock();
-    m_queuestat.post();
-    return true;
-}
-
-template <typename T>
-bool threadpool<T>::append_p(T *request) {
+bool threadpool<T>::append(T *request) {
     m_queuelocker.lock();
     if (m_workqueue.size() >= m_max_requests) {
         m_queuelocker.unlock();
@@ -100,6 +80,11 @@ void threadpool<T>::run() {
             continue;
         request->process();
     }
+}
+
+template <typename T>
+threadpool<T>::~threadpool() {
+    delete[] m_threads;
 }
 
 #endif

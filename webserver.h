@@ -23,7 +23,7 @@ class WebServer {
 public:
     WebServer();
     ~WebServer();
-    void init(int port, int log_write, int opt_linger, int trigmode, int thread_num);
+    void init(int port, int opt_linger, int trigmode, int thread_num, int server_num, int test);
     void thread_pool();
     void sql_pool();
     void log_write();
@@ -32,14 +32,18 @@ public:
     void eventLoop();
     void timer(int connfd, struct sockaddr_in client_address);
     void adjust_timer(util_timer *timer);
-    void deal_timer(util_timer *timer, int sockfd);
-    bool dealclinetdata();
-    bool dealwithsignal(bool& timeout, bool& stop_server);
-    void dealwithread(int sockfd);
-    void dealwithwrite(int sockfd);
+    void deal_time(util_timer *timer, int sockfd);
+    bool deal_client();
+    bool deal_signal(bool& timeout, bool& stop_server);
+    void deal_read(int sockfd);
+    void deal_write(int sockfd);
 
 public:
     int m_port;
+    int m_test;
+    char *m_server_ip[10];
+    int m_server_port[10];
+    int m_server_num;
     int m_pipefd[2];
     int m_epollfd;
     http_conn *users;

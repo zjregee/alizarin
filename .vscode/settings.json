@@ -9,6 +9,8 @@
         "sstream": "cpp",
         "concepts": "cpp",
         "ios": "cpp",
-        "locale": "cpp"
-    }
+        "locale": "cpp",
+        "string": "cpp"
+    },
+    "C_Cpp.errorSquiggles": "Disabled"
 }
