@@ -15,13 +15,12 @@ WebServer::~WebServer() {
     delete m_pool;
 }
 
-void WebServer::init(int port, int opt_linger, int trigmode, int thread_num, int server_num, int test) {
+void WebServer::init(int port, int opt_linger, int trigmode, int thread_num, int test) {
     m_port = port;
     m_thread_num = thread_num;
     m_OPT_LINGER = opt_linger;
     m_TRIGMode = trigmode;
     m_test = test;
-    m_server_num = server_num;
 }
 
 void WebServer::trig_mode() {

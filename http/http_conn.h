@@ -29,7 +29,7 @@
 class http_conn {
 public:
     static const int READ_BUFFER_SIZE = 2048;
-    static const int WRITE_BUFFER_SIZE = 1024;
+    static const int WRITE_BUFFER_SIZE = 8192;
     enum HTTP_CODE {
         NO_REQUEST,
         GET_REQUEST,

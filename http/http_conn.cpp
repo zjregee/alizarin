@@ -45,8 +45,8 @@ int http_conn::m_user_count = 0;
 int http_conn::m_epollfd = -1;
 int http_conn::m_test = 0;
 int http_conn::server_num = 1;
-char *http_conn::server_ip[10] = {"47.114.99.34"};
-int http_conn::server_port[10] = {8080};
+char *http_conn::server_ip[10] = {"127.0.0.1"};
+int http_conn::server_port[10] = {8333};
 
 
 void http_conn::close_conn(bool real_close) {
@@ -84,7 +84,7 @@ http_conn::HTTP_CODE http_conn::do_request() {
         return FILE_REQUEST;
     }
     int sockfd, num;
-    char buf[1024];
+    char buf[8192];
     struct hostent *he;
     struct sockaddr_in server;
 
@@ -116,7 +116,7 @@ http_conn::HTTP_CODE http_conn::do_request() {
         exit(1);
     }
 
-    if((num = recv(sockfd, buf, 1024, 0)) == -1) {
+    if((num = recv(sockfd, buf, 8192, 0)) == -1) {
         printf("recv() error\n");
         exit(1);
     }

@@ -6,9 +6,6 @@ Config::Config() {
     OPT_LINGER = 0;
     thread_num = 8;
     test = 0;
-    server_ip[0] = {"47.114.99.34"};
-    server_port[0] = {8000};
-    server_num = 1;
 }
 
 void Config::parse_arg(int argc, char*argv[]) {

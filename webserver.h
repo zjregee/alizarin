@@ -23,7 +23,7 @@ class WebServer {
 public:
     WebServer();
     ~WebServer();
-    void init(int port, int opt_linger, int trigmode, int thread_num, int server_num, int test);
+    void init(int port, int opt_linger, int trigmode, int thread_num, int test);
     void thread_pool();
     void sql_pool();
     void log_write();
@@ -41,9 +41,6 @@ public:
 public:
     int m_port;
     int m_test;
-    char *m_server_ip[10];
-    int m_server_port[10];
-    int m_server_num;
     int m_pipefd[2];
     int m_epollfd;
     http_conn *users;

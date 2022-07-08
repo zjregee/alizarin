@@ -15,9 +15,6 @@ public:
     int OPT_LINGER;
     int thread_num;
     int test;
-    int server_num;
-    char *server_ip[10];
-    int server_port[10];
 };
 
 #endif
